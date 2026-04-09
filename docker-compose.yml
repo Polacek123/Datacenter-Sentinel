@@ -1,0 +1,14 @@
+services:
+  # Serwer komunikacyjny dla czujników
+  broker:
+    image: eclipse-mosquitto:latest
+    container_name: serwer_mqtt
+    ports:
+      - "1883:1883"
+    networks:
+      - siec_aplikacyjna
+
+# Definicja wirtualnej sieci
+networks:
+  siec_aplikacyjna:
+    driver: bridge
