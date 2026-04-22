@@ -1,0 +1,4 @@
+# config.py
+BROKER_ADDRESS = "localhost"
+BROKER_PORT = 1883
+PUBLISH_INTERVAL = 5
