@@ -7,8 +7,20 @@ services:
       - "1883:1883"
     networks:
       - siec_aplikacyjna
+ 
+  rack_a_sensors:
+    build: ./sensors
+    container_name: rack_a_sensors_container
+    depends_on:
+      - broker
+    environment:
+      MQTT_BROKER: serwer_mqtt
+      PYTHONUNBUFFERED: 1
+      SENSORS_CONFIG: '[{"type": "temp", "id": "RackA_Temp", "topic": "datacenter/rackA/temp", "interval": 3}, {"type": "humidity", "id": "RackA_Humidity", "topic": "datacenter/rackA/humidity", "interval": 5}]'
+    networks:
+      - siec_aplikacyjna
 
-# Definicja wirtualnej sieci
+# Wewnętrzna sieć
 networks:
   siec_aplikacyjna:
     driver: bridge
