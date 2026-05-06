@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+aiomqtt
+sqlalchemy
+asyncpg
+pydantic-settings
