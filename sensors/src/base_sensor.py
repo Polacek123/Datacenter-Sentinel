@@ -12,7 +12,6 @@ class Sensor(ABC):
         self.topic = topic
         self.interval = interval
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-        # Zmiana - pobieranie adresu brokera ze zmiennych środowiskowych Dockera
         self.broker = broker or os.getenv("MQTT_BROKER", "localhost")
         self.port = port
 

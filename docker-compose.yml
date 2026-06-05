@@ -1,5 +1,25 @@
 services:
-  # Serwer komunikacyjny dla czujników
+  # Baza danych PostgreSQL
+  database:
+    image: timescale/timescaledb:latest-pg16
+    container_name: baza_postgres
+    environment:
+      POSTGRES_USER: datacenter_user
+      POSTGRES_PASSWORD: datacenter_pass
+      POSTGRES_DB: datacenter_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - siec_aplikacyjna
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U datacenter_user -d datacenter_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+    # Serwer komunikacyjny dla czujników
   broker:
     image: eclipse-mosquitto:latest
     container_name: serwer_mqtt
@@ -7,20 +27,88 @@ services:
       - "1883:1883"
     networks:
       - siec_aplikacyjna
- 
-  rack_a_sensors:
+
+  # Backend FastAPI
+  backend:
+    build: ./backend
+    container_name: backend_fastapi
+    depends_on:
+      database:
+        condition: service_healthy
+      broker:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql+asyncpg://datacenter_user:datacenter_pass@database:5432/datacenter_db
+      MQTT_BROKER: serwer_mqtt
+      MQTT_TOPIC: datacenter/#
+    ports:
+      - "8000:8000"
+    networks:
+      - siec_aplikacyjna
+
+  # KONTENER 1: Pokój 1 (AI + Storage) - Łącznie 6 czujników i dwie szafy RackA i RackB
+  room_1_sensors:
+      build: ./sensors
+      container_name: room_1_sensors_container
+      depends_on:
+        - broker
+      environment:
+        MQTT_BROKER: serwer_mqtt
+        PYTHONUNBUFFERED: 1
+        SENSORS_CONFIG: |
+          [
+            {"type": "power_draw", "id": "RackA_Power", "topic": "datacenter/room1/rackA/power", "interval": 2, "base_load": 4.5, "spike_chance": 0.08},
+            {"type": "temp", "id": "RackA_Temp", "topic": "datacenter/room1/rackA/temp", "interval": 2},
+            {"type": "humidity", "id": "RackA_Humidity", "topic": "datacenter/room1/rackA/humidity", "interval": 4},
+            {"type": "power_draw", "id": "RackB_Power", "topic": "datacenter/room1/rackB/power", "interval": 3, "base_load": 1.2, "spike_chance": 0.02},
+            {"type": "temp", "id": "RackB_Temp", "topic": "datacenter/room1/rackB/temp", "interval": 3},
+            {"type": "humidity", "id": "RackB_Humidity", "topic": "datacenter/room1/rackB/humidity", "interval": 5}
+          ]
+      networks:
+        - siec_aplikacyjna
+
+  # KONTENER 2: Pokój 2 (Infrastruktura sieciowa) - Łącznie 3 czujniki i jedna szafa RackC
+  room_2_sensors:
     build: ./sensors
-    container_name: rack_a_sensors_container
+    container_name: room_2_sensors_container
     depends_on:
       - broker
     environment:
       MQTT_BROKER: serwer_mqtt
       PYTHONUNBUFFERED: 1
-      SENSORS_CONFIG: '[{"type": "temp", "id": "RackA_Temp", "topic": "datacenter/rackA/temp", "interval": 3}, {"type": "humidity", "id": "RackA_Humidity", "topic": "datacenter/rackA/humidity", "interval": 5}]'
+      SENSORS_CONFIG: |
+        [
+          {"type": "power_draw", "id": "RackC_Power", "topic": "datacenter/room2/rackC/power", "interval": 3, "base_load": 2.2, "spike_chance": 0.005},
+          {"type": "temp", "id": "RackC_Temp", "topic": "datacenter/room2/rackC/temp", "interval": 3},
+          {"type": "humidity", "id": "RackC_Humidity", "topic": "datacenter/room2/rackC/humidity", "interval": 5}
+        ]
     networks:
       - siec_aplikacyjna
 
-# Wewnętrzna sieć
+  #Grafana do wizualizacji danych
+  grafana:
+      image: grafana/grafana-oss:latest
+      container_name: wizualizacja_grafana
+      ports:
+        - "3000:3000"
+      environment:
+        - GF_SECURITY_ADMIN_USER=admin
+        - GF_SECURITY_ADMIN_PASSWORD=admin
+        # Domyślny dashboard, który będzie ładowany przy starcie Grafany:
+        - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/dashboards/dashboard.json
+      volumes:
+        - grafana_data:/var/lib/grafana
+        - ./grafana/dashboards:/etc/grafana/dashboards
+      networks:
+        - siec_aplikacyjna
+      depends_on:
+        - database
+
+# Wewnętrzna sieć i wolumeny
 networks:
   siec_aplikacyjna:
     driver: bridge
+
+volumes:
+  postgres_data:
+  grafana_data:

@@ -1,11 +1,10 @@
+import asyncio
 import json
 from datetime import datetime, timezone
 import aiomqtt
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models.sensor_reading import SensorReading
-
-
 
 
 async def process_message(payload: str, topic: str):
@@ -17,12 +16,12 @@ async def process_message(payload: str, topic: str):
             dt_timestamp = datetime.fromtimestamp(sensor_time, tz=timezone.utc)
         else:
             dt_timestamp = datetime.now(timezone.utc)
-        
+
         async with SessionLocal() as session:
             new_record = SensorReading(
                 sensor_id=data.get("sensor_id", "unknown"),
                 value=float(data.get("value", 0.0)),
-                timestamp=dt_timestamp
+                timestamp=dt_timestamp,
             )
             session.add(new_record)
             await session.commit()
@@ -35,19 +34,25 @@ async def process_message(payload: str, topic: str):
         print(f"Database error on topic {topic}: {e}")
 
 
-
 async def listen_mqtt():
-    try:
-        async with aiomqtt.Client(hostname=settings.MQTT_BROKER) as client:
-            await client.subscribe(settings.MQTT_TOPIC)
-            print(f"Subscribed to MQTT topic: {settings.MQTT_TOPIC}")
-            
-            async for message in client.messages:
-                payload = message.payload.decode()
-                topic = message.topic.value
-                print(f"Received on {topic}: {payload}")
-                
-                await process_message(payload, topic)
-                        
-    except aiomqtt.MqttError as error:
-        print(f"MQTT connection error: {error}")
+    retry_delay = 5  # seconds before retrying connection
+
+    while True:
+        try:
+            async with aiomqtt.Client(hostname=settings.MQTT_BROKER) as client:
+                await client.subscribe(settings.MQTT_TOPIC)
+                print(f"Subscribed to MQTT topic: {settings.MQTT_TOPIC}")
+
+                async for message in client.messages:
+                    payload = message.payload.decode()
+                    topic = message.topic.value
+                    print(f"Received on {topic}: {payload}")
+
+                    await process_message(payload, topic)
+
+        except aiomqtt.MqttError as error:
+            print(f"MQTT connection error: {error}. Retrying in {retry_delay}s...")
+            await asyncio.sleep(retry_delay)
+        except asyncio.CancelledError:
+            print("MQTT listener cancelled. Shutting down.")
+            break
