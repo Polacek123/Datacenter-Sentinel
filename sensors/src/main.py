@@ -1,8 +1,9 @@
 import os
 import json
 import threading
-from temp_sensor import TemperatureSensor
-from humidity_sensor import HumiditySensor
+from sensor_types.temperature_sensor import TemperatureSensor
+from sensor_types.humidity_sensor import HumiditySensor
+from sensor_types.power_draw_sensor import PowerDrawSensor
 
 def start_sensor(sensor_class, config):
     """Helper function to create a sensor object"""
@@ -23,7 +24,8 @@ if __name__ == "__main__":
     for cfg in sensors_to_run:
         sensor_map = {
             "temp": TemperatureSensor,
-            "humidity": HumiditySensor
+            "humidity": HumiditySensor,
+            "power_draw": PowerDrawSensor
         }
         
         sensor_class = sensor_map.get(cfg['type'])

@@ -1,3 +1,4 @@
+import random
 from base_sensor import Sensor
 
 class HumiditySensor(Sensor):

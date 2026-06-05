@@ -1,3 +1,4 @@
+import os
 import json
 import time
 import random
@@ -6,12 +7,13 @@ from abc import ABC, abstractmethod
 
 
 class Sensor(ABC):
-    def __init__(self, sensor_id, topic, broker="localhost", port=1883, interval=5):
+    def __init__(self, sensor_id, topic, broker=None, port=1883, interval=5):
         self.sensor_id = sensor_id
         self.topic = topic
         self.interval = interval
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-        self.broker = broker
+        # Zmiana - pobieranie adresu brokera ze zmiennych środowiskowych Dockera
+        self.broker = broker or os.getenv("MQTT_BROKER", "localhost")
         self.port = port
 
     @abstractmethod
